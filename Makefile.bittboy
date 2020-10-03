@@ -1,0 +1,53 @@
+SHELL = /bin/sh
+
+CHAINPREFIX=/opt/buildroot-bittboy/output/host
+CROSS_COMPILE=$(CHAINPREFIX)/bin/arm-buildroot-linux-musleabi-
+
+CC = $(CROSS_COMPILE)gcc
+CXX = $(CROSS_COMPILE)g++
+
+SYSROOT     := $(shell $(CC) --print-sysroot)
+
+
+LIBS   = $(shell $(SYSROOT)/usr/bin/sdl-config --cflags)
+LDFLAGS= $(shell $(SYSROOT)/usr/bin/sdl-config --static-libs) 
+
+CFLAGS = -O2 -fomit-frame-pointer -fno-exceptions  -I./ -DKBD_LANG=0 -DHAVE_SDL -Wno-narrowing -DMAEMO
+DEFS = -DHAVE_CONFIG_H -DDATADIR=\"$(datadir)/frodo/\" -DBINDIR=\"$(bindir)/\"
+
+
+
+# includes and libs
+INCS += -I. 
+LIBS += -lc -lutil
+
+# flags
+CPPFLAGS = -Wno-write-strings
+CFLAGS  += -Wall ${INCS} ${CPPFLAGS}
+LDFLAGS += -lSDL_image -lSDL_ttf -ljpeg   -lfreetype   -lpng -lz
+
+
+
+SRC = keydebug.c
+OBJ = ${SRC:.c=.o}
+all: options keydebug 
+
+options:
+	@echo kbd build options:
+	@echo "CFLAGS   = ${CFLAGS}"
+	@echo "LDFLAGS  = ${LDFLAGS}"
+	@echo "CXX       = ${CXX}"
+
+.c.o:
+	@echo CXX $<
+	@${CXX} -c ${CFLAGS} $<
+
+
+
+keydebug: 	${OBJ}
+	@echo CXX -o $@
+	@${CXX} -o $@ ${OBJ} ${LDFLAGS}
+
+clean:
+	@echo cleaning
+	@rm -f keydebug ${OBJ} 
