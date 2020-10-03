@@ -1,7 +1,5 @@
 #include "SDL/SDL.h"
-#include "SDL/SDL_image.h"
 #include "SDL/SDL_ttf.h"
-#include <string>
 #include "clacon.ttf.h"
 
 
@@ -10,6 +8,7 @@ const int SCREEN_HEIGHT = 240;
 const int SCREEN_BPP = 16;
 
 char tmp[64] = "";
+char device[64] = "";
 
 SDL_Surface *screen = NULL;
 SDL_Surface *message = NULL;
@@ -41,10 +40,57 @@ char* key_name(int sym) {
  }
 }
 
-bool init()
+void get_device()
+{ 
+  int len;
+  char* pos;
+
+  FILE *fp = NULL;
+  fp = fopen("/etc/cfw-info", "r");
+  if(fp != NULL) {
+    while(!feof(fp)){
+      fgets(tmp, 64, fp);
+      if (tmp[0] == '#') {
+        continue;
+      }
+
+      len = strlen(tmp);
+      pos = strchr(tmp, '=');
+      if (pos == NULL) {
+        continue;
+      }
+      char key[64] = { 0 };
+      char val[64] = { 0 };
+
+      int offset = 1;
+      if (tmp[len - 1] == '\n') {
+        offset = 2;
+      }
+      if (tmp[len - 2] == '\r') {
+        offset = 3;
+      }
+
+      strncpy(key, tmp, pos - tmp);
+      strncpy(val, pos + 1, tmp + len - offset - pos-1);
+
+      printf("%s -> %s\n", key, val);
+      if (0==strcmp(key, "DEVICE_NAME")) {
+        strcpy(device, val);
+      }
+  }
+  printf("*%s*\n", device);
+  fclose(fp);
+  }
+}
+
+int init()
 {
+    SDL_Rect rect;
+
+    get_device();
+
     if(SDL_Init( SDL_INIT_EVERYTHING ) == -1) {
-      return false;
+      return -1;
     }
     
     screen = SDL_SetVideoMode(SCREEN_WIDTH, SCREEN_HEIGHT,
@@ -52,19 +98,18 @@ bool init()
 
 
     if(screen == NULL) {
-      return false;
+      return -2;
     }
     
     SDL_ShowCursor(SDL_DISABLE);
     
     if(TTF_Init() == -1) {
-      return false;
+      return -3;
     }
 
-    //font = TTF_OpenFont("clacon.ttf", 26 );
     font = TTF_OpenFontRW(SDL_RWFromMem((void *) clacon_ttf, sizeof(clacon_ttf)), 1, 26);
     if(font == NULL) {
-      return false;
+      return -4;
     }
 
     background = SDL_CreateRGBSurface(SDL_SWSURFACE,
@@ -74,10 +119,9 @@ bool init()
 				      screen->format->Bmask,
 				      screen->format->Amask);
     if(background == NULL) {
-      return false;
+      return -5;
     }
 
-    SDL_Rect rect;
     rect.x = 0;
     rect.y = 0;
     rect.w = SCREEN_WIDTH;
@@ -85,69 +129,94 @@ bool init()
     SDL_FillRect(background, &rect, 0);
 
     info = TTF_RenderText_Solid( font, "Press a key 3 times to exit" , textColor );
-
-    rect.x = 0;
+    rect.x = 10;
     rect.y = 200;
     rect.w = 0;
     rect.h = 0;
+    if(info != NULL) {
+      SDL_BlitSurface(info, NULL, background, &rect );
+	    SDL_FreeSurface(info);
+	    info = NULL;
+    }
+    else {
+      return -6;
+    }
 
-    SDL_BlitSurface(info, NULL, background, &rect );
-    
-    return true;
+    info = TTF_RenderText_Solid( font, device , textColor );
+    rect.x = 10;
+    rect.y = 160;
+    rect.w = 0;
+    rect.h = 0;
+    if(info != NULL) {
+      SDL_BlitSurface(info, NULL, background, &rect );
+	    SDL_FreeSurface(info);
+	    info = NULL;
+    }
+    else {
+      return -6;
+    }
+
+
+    return 0;
 }
 
 void clean_up()
 {
-    TTF_CloseFont( font );
+    TTF_CloseFont(font);
     TTF_Quit();
     SDL_Quit();
 }
 
 int main( int argc, char* args[] )
 {
-    bool quit = false;
+    int quit = 0;
     int repkey = 0;
     int prevkey = 0;
-    if( init() == false ) {
-      printf("init() failed\n");
+    int keysym = 0;
+    int error = 0;
+
+    if((error = init()) != 0) {
+      printf("init() failed with code %d\n", error);
       return 1;
     }
 
-    SDL_BlitSurface(background, NULL, screen, NULL );
+    SDL_BlitSurface(background, NULL, screen, NULL);
     
-    while( quit == false ) {
-      if( SDL_PollEvent( &event ) ) {
-	if( event.type == SDL_KEYDOWN ) {
-	  int keysym = event.key.keysym.sym;
-	  sprintf(tmp, "KeySym: %d %s", keysym, key_name(keysym));
-	  
-	  message =  TTF_RenderText_Solid( font, tmp , textColor );
-	  if ( prevkey == keysym)
-	    repkey++;
-	  else
-	    repkey = 0;
-	  prevkey = keysym;
-	}
-
-	else if( repkey > 2 ) {
-	  quit = true;
-	}
-      }
-
-      if( message != NULL ) {
-	SDL_BlitSurface(background, NULL, screen, NULL );
-	SDL_BlitSurface(message, NULL, screen, NULL );
-	SDL_FreeSurface( message );
-	message = NULL;
-      }
-      
-      if( SDL_Flip( screen ) == -1 ) {
-	return 1;
-      }
+    while(quit != 1) {
+      if(SDL_PollEvent(&event)) {
+	      if(event.type == SDL_KEYDOWN) {
+	        keysym = event.key.keysym.sym;
+	        sprintf(tmp, " KeySym: %d %s", keysym, key_name(keysym));
+	        message =  TTF_RenderText_Solid( font, tmp , textColor);
+          if (message == NULL) {
+            break;
+          }
+	        if (prevkey == keysym) {
+	          repkey++;
+          }
+	        else {
+	          repkey = 0;
+          }
+	        prevkey = keysym;
+	    }
+    	else if(repkey > 2) {
+	      quit = 1;
+	    }
     }
 
-    clean_up();
+    if(message != NULL) {
+	    SDL_BlitSurface(background, NULL, screen, NULL);
+	    SDL_BlitSurface(message, NULL, screen, NULL);
+	    SDL_FreeSurface(message);
+	    message = NULL;
+    }
+      
+    if(SDL_Flip(screen) == -1) {
+	    return 1;
+    }
+  }
+  clean_up();
 
-    return 0;
+  return 0;
 }
 
