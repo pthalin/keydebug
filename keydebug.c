@@ -8,7 +8,6 @@ const int SCREEN_HEIGHT = 240;
 const int SCREEN_BPP = 16;
 
 char device[64] = "";
-char hwrev[64] = "";
 
 SDL_Surface *screen = NULL;
 SDL_Surface *message = NULL;
@@ -39,6 +38,8 @@ char* key_name(int sym) {
   case 274: return "DOWN";
   case 275: return "RIGHT";
   case 276: return "LEFT";
+  case 280: return "PAGEUP";
+  case 281: return "PAGEDOWN";
   default:  return "?";
  }
 }
@@ -51,7 +52,8 @@ void get_device()
 
 
   FILE *fp = NULL;
-  fp = fopen("/etc/cfw-info", "r");
+  fp = fopen("/boot/console.cfg", "r");
+
   if(fp != NULL) {
     while(!feof(fp)){
       char tmp[64] = "";
@@ -70,36 +72,26 @@ void get_device()
       if (NULL == (pos = strchr(tmp, '='))) {
         continue;
       }
-
+      printf("len=%d\n", len);
       char key[64] = "";
       char val[64] = "";
       strncpy(key, tmp, pos - tmp);
       strncpy(val, pos + 1, tmp + len - pos-1);
 
       printf("%s -> %s\n", key, val);
-      if (0==strcmp(key, "DEVICE_NAME")) {
+      if (0==strcmp(key, "CONSOLE_VARIANT")) {
         strcpy(device, val);
       }
-      if (0==strcmp(key, "DEVICE_REV")) {
-        strcpy(hwrev, val);
-      }
   }
-  if (0==strcmp(device, "BITTBOY")) {
-     if (0==strcmp(hwrev, "3.5")) {
-        devid = BITTBOY35;
-      }
-      else if (0==strcmp(hwrev, "3")) {
-        devid = BITTBOY3;
-      }
-      else if (0==strcmp(hwrev, "2")) {
-        devid = BITTBOY2;
-      }
-      else {
-        devid = UNKNOWN;
-      }
-  } else if (0==strcmp(device, "POCKETGO")) {
+  if (0==strcmp(device, "bittboy3.5")) {
+    devid = BITTBOY35;
+  } else if (0==strcmp(device, "bittboy3")) {
+    devid = BITTBOY3;
+  } else if (0==strcmp(device, "bittboy2")) {
+    devid = BITTBOY2;
+  } else if (0==strcmp(device, "pocketgo")) {
     devid = POCKETGO;
-  } else if (0==strcmp(device, "V90Q90")) {
+  } else if (0==strcmp(device, "v90_q90")) {
     devid = V90orQ90;
   }
   else{
@@ -115,6 +107,8 @@ int init()
     SDL_Rect rect;
 
     get_device();
+
+    printf("%s", device);
 
     if(SDL_Init(SDL_INIT_EVERYTHING ) == -1) {
       return -1;
@@ -165,7 +159,7 @@ int init()
 	    info = NULL;
     }
     else {
-      return -6;
+      return -61;
     }
 
     info = TTF_RenderText_Solid(font, device , textColor);
@@ -179,24 +173,8 @@ int init()
 	    info = NULL;
     }
     else {
-      return -6;
+      return -62;
     }
-
-    info = TTF_RenderText_Solid(font, hwrev , textColor);
-    rect.x = 10;
-    rect.y = 180;
-    rect.w = 0;
-    rect.h = 0;
-    if(info != NULL) {
-      SDL_BlitSurface(info, NULL, background, &rect);
-	    SDL_FreeSurface(info);
-	    info = NULL;
-    }
-    else {
-      return -6;
-    }
-
-
 
     return 0;
 }
@@ -317,10 +295,10 @@ int main(int argc, char* args[] )
         case SDLK_TAB:
           sprintf(tmp, "%s", "Button: L1");
           break;
-        case SDLK_RSHIFT:
+        case SDLK_PAGEDOWN:
           sprintf(tmp, "%s", "Button: R2");
           break;
-        case SDLK_RALT:
+        case SDLK_PAGEUP:
           sprintf(tmp, "%s", "Button: L2");
           break;
         case SDLK_UP:
